@@ -1,1 +1,0 @@
-# student_companion_app
