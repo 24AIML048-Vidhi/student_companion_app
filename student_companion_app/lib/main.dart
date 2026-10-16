@@ -1,6 +1,7 @@
 
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
   runApp(const StudentCompanionApp());
@@ -10,14 +11,8 @@ const Color primaryColor = Color(0xFF4F46E5);
 const Color pageColor = Color(0xFFF6F7FB);
 
 const List<String> semesters = [
-  'Semester I',
-  'Semester II',
-  'Semester III',
-  'Semester IV',
-  'Semester V',
-  'Semester VI',
-  'Semester VII',
-  'Semester VIII',
+  'Semester I', 'Semester II', 'Semester III', 'Semester IV',
+  'Semester V', 'Semester VI', 'Semester VII', 'Semester VIII',
 ];
 
 const List<String> departments = [
@@ -36,14 +31,8 @@ const List<String> availableCourses = [
 ];
 
 const List<String> moduleNames = [
-  'Courses',
-  'Attendance',
-  'Timetable',
-  'Assignments',
-  'Notifications',
-  'Faculty',
-  'Events',
-  'Settings',
+  'Courses', 'Attendance', 'Timetable', 'Assignments',
+  'Notifications', 'Faculty', 'Events', 'Settings',
 ];
 
 const List<IconData> moduleIcons = [
@@ -58,7 +47,7 @@ const List<IconData> moduleIcons = [
 ];
 
 // ============================================================
-// SHARED APPLICATION STATE
+// SHARED APPLICATION STATE + SHARED PREFERENCES
 // ============================================================
 
 class StudentAppScope extends InheritedWidget {
@@ -73,18 +62,16 @@ class StudentAppScope extends InheritedWidget {
   static _StudentCompanionAppState of(BuildContext context) {
     final scope =
         context.dependOnInheritedWidgetOfExactType<StudentAppScope>();
-
     assert(scope != null, 'StudentAppScope not found');
     return scope!.appState;
   }
 
-  // Notify dependent screens whenever the app rebuilds.
   @override
   bool updateShouldNotify(StudentAppScope oldWidget) => true;
 }
 
 // ============================================================
-// APPLICATION AND GLOBAL STATE
+// APPLICATION AND PERSISTENT STATE
 // ============================================================
 
 class StudentCompanionApp extends StatefulWidget {
@@ -96,13 +83,12 @@ class StudentCompanionApp extends StatefulWidget {
 }
 
 class _StudentCompanionAppState extends State<StudentCompanionApp> {
+  bool isLoggedIn = false;
   bool isDarkMode = false;
 
   String studentName = 'Vidhi Patel';
   String enrollment = '24AIML048';
-  String department =
-      'Artificial Intelligence and Machine Learning';
-
+  String department = departments[2];
   String semester = 'Semester V';
   String language = 'English';
 
@@ -117,34 +103,108 @@ class _StudentCompanionAppState extends State<StudentCompanionApp> {
   String dashboardLayout = 'Grid';
   double textSize = 16;
 
+  String loginEmail = '';
+
   final List<String> selectedCourses =
       List<String>.from(availableCourses);
 
-  void updateProfile({
+  SharedPreferences? _prefs;
+
+  // Load saved preferences when the app starts.
+  Future<void> loadPreferences() async {
+    _prefs = await SharedPreferences.getInstance();
+
+    isLoggedIn = _prefs!.getBool('isLoggedIn') ?? false;
+    loginEmail = _prefs!.getString('loginEmail') ?? '';
+
+    studentName = _prefs!.getString('studentName') ?? 'Vidhi Patel';
+    enrollment = _prefs!.getString('enrollment') ?? '24AIML048';
+    department = _prefs!.getString('department') ?? departments[2];
+    semester = _prefs!.getString('semester') ?? 'Semester V';
+    language = _prefs!.getString('language') ?? 'English';
+    isDarkMode = _prefs!.getBool('isDarkMode') ?? false;
+
+    assignmentAlerts = _prefs!.getBool('assignmentAlerts') ?? true;
+    examNotifications = _prefs!.getBool('examNotifications') ?? true;
+    placementUpdates = _prefs!.getBool('placementUpdates') ?? true;
+    eventAnnouncements = _prefs!.getBool('eventAnnouncements') ?? true;
+
+    showAttendance = _prefs!.getBool('showAttendance') ?? true;
+    showCourses = _prefs!.getBool('showCourses') ?? true;
+
+    dashboardLayout = _prefs!.getString('dashboardLayout') ?? 'Grid';
+    textSize = _prefs!.getDouble('textSize') ?? 16;
+
+    selectedCourses
+      ..clear()
+      ..addAll(
+        _prefs!.getStringList('selectedCourses') ?? availableCourses,
+      );
+
+    if (mounted) setState(() {});
+  }
+
+  Future<void> savePreferences() async {
+    _prefs ??= await SharedPreferences.getInstance();
+
+    await _prefs!.setBool('isLoggedIn', isLoggedIn);
+    await _prefs!.setString('loginEmail', loginEmail);
+    await _prefs!.setString('studentName', studentName);
+    await _prefs!.setString('enrollment', enrollment);
+    await _prefs!.setString('department', department);
+    await _prefs!.setString('semester', semester);
+    await _prefs!.setString('language', language);
+    await _prefs!.setBool('isDarkMode', isDarkMode);
+
+    await _prefs!.setBool('assignmentAlerts', assignmentAlerts);
+    await _prefs!.setBool('examNotifications', examNotifications);
+    await _prefs!.setBool('placementUpdates', placementUpdates);
+    await _prefs!.setBool('eventAnnouncements', eventAnnouncements);
+
+    await _prefs!.setBool('showAttendance', showAttendance);
+    await _prefs!.setBool('showCourses', showCourses);
+    await _prefs!.setString('dashboardLayout', dashboardLayout);
+    await _prefs!.setDouble('textSize', textSize);
+    await _prefs!.setStringList('selectedCourses', selectedCourses);
+  }
+
+  // Demo login: only the provided credentials are accepted.
+  Future<void> login(String email) async {
+    loginEmail = email;
+    isLoggedIn = true;
+    await savePreferences();
+    if (mounted) setState(() {});
+  }
+
+  Future<void> updateProfile({
     required String name,
     required String enrollmentNo,
     required String selectedDepartment,
-  }) {
+  }) async {
     setState(() {
       studentName = name;
       enrollment = enrollmentNo;
       department = selectedDepartment;
     });
+    await savePreferences();
   }
 
-  void updateTheme(bool value) {
+  Future<void> updateTheme(bool value) async {
     setState(() => isDarkMode = value);
+    await savePreferences();
   }
 
-  void updateSemester(String value) {
+  Future<void> updateSemester(String value) async {
     setState(() => semester = value);
+    await savePreferences();
   }
 
-  void updateLanguage(String value) {
+  Future<void> updateLanguage(String value) async {
     setState(() => language = value);
+    await savePreferences();
   }
 
-  void updateNotification(String type, bool value) {
+  Future<void> updateNotification(String type, bool value) async {
     setState(() {
       switch (type) {
         case 'assignment':
@@ -161,9 +221,10 @@ class _StudentCompanionAppState extends State<StudentCompanionApp> {
           break;
       }
     });
+    await savePreferences();
   }
 
-  void updateCourse(String course, bool selected) {
+  Future<void> updateCourse(String course, bool selected) async {
     setState(() {
       if (selected && !selectedCourses.contains(course)) {
         selectedCourses.add(course);
@@ -171,17 +232,20 @@ class _StudentCompanionAppState extends State<StudentCompanionApp> {
         selectedCourses.remove(course);
       }
     });
+    await savePreferences();
   }
 
-  void updateLayout(String value) {
+  Future<void> updateLayout(String value) async {
     setState(() => dashboardLayout = value);
+    await savePreferences();
   }
 
-  void updateTextSize(double value) {
+  Future<void> updateTextSize(double value) async {
     setState(() => textSize = value);
+    await savePreferences();
   }
 
-  void updateDashboardCard(String type, bool value) {
+  Future<void> updateDashboardCard(String type, bool value) async {
     setState(() {
       if (type == 'attendance') {
         showAttendance = value;
@@ -189,25 +253,51 @@ class _StudentCompanionAppState extends State<StudentCompanionApp> {
         showCourses = value;
       }
     });
+    await savePreferences();
   }
 
-  void resetPreferences() {
+  Future<void> resetPreferences() async {
     setState(() {
       isDarkMode = false;
       semester = 'Semester V';
       language = 'English';
-
       assignmentAlerts = true;
       examNotifications = true;
       placementUpdates = true;
       eventAnnouncements = true;
-
       showAttendance = true;
       showCourses = true;
-
       dashboardLayout = 'Grid';
       textSize = 16;
+      selectedCourses
+        ..clear()
+        ..addAll(availableCourses);
+    });
+    await savePreferences();
+  }
 
+  // Logout clears the saved session and preferences.
+  Future<void> logout() async {
+    _prefs ??= await SharedPreferences.getInstance();
+    await _prefs!.clear();
+
+    setState(() {
+      isLoggedIn = false;
+      loginEmail = '';
+      isDarkMode = false;
+      studentName = 'Vidhi Patel';
+      enrollment = '24AIML048';
+      department = departments[2];
+      semester = 'Semester V';
+      language = 'English';
+      assignmentAlerts = true;
+      examNotifications = true;
+      placementUpdates = true;
+      eventAnnouncements = true;
+      showAttendance = true;
+      showCourses = true;
+      dashboardLayout = 'Grid';
+      textSize = 16;
       selectedCourses
         ..clear()
         ..addAll(availableCourses);
@@ -245,35 +335,43 @@ class _StudentCompanionAppState extends State<StudentCompanionApp> {
         ),
       ),
 
-      // IMPORTANT:
-      // Wrap the Navigator so pushed routes can access shared state.
+      // Named routes for Practical 5.
+      initialRoute: '/splash',
+      routes: {
+        '/splash': (_) => SplashScreen(app: this),
+        '/login': (_) => LoginScreen(app: this),
+        '/register': (_) => const RegistrationScreen(),
+        '/dashboard': (_) => const MainNavigationScreen(),
+        '/profile': (_) => const StudentProfileScreen(),
+        '/settings': (_) => const SettingsScreen(),
+        '/courses': (_) => const ModuleScreen(title: 'Courses'),
+        '/attendance': (_) => const ModuleScreen(title: 'Attendance'),
+        '/timetable': (_) => const ModuleScreen(title: 'Timetable'),
+        '/assignments': (_) => const ModuleScreen(title: 'Assignments'),
+        '/notifications': (_) => const ModuleScreen(title: 'Notifications'),
+        '/faculty': (_) => const ModuleScreen(title: 'Faculty'),
+        '/events': (_) => const ModuleScreen(title: 'Events'),
+      },
+
+      // Wrap Navigator so every route can access shared application state.
       builder: (context, child) {
         return StudentAppScope(
           appState: this,
           child: child ?? const SizedBox.shrink(),
         );
       },
-
-      home: SplashScreen(
-        child: LoginScreen(
-          onLogin: () {},
-        ),
-      ),
     );
   }
 }
 
 // ============================================================
-// SPLASH SCREEN
+// SPLASH SCREEN: CHECK SAVED LOGIN SESSION
 // ============================================================
 
 class SplashScreen extends StatefulWidget {
-  final Widget child;
+  final _StudentCompanionAppState app;
 
-  const SplashScreen({
-    super.key,
-    required this.child,
-  });
+  const SplashScreen({super.key, required this.app});
 
   @override
   State<SplashScreen> createState() => _SplashScreenState();
@@ -283,15 +381,19 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   void initState() {
     super.initState();
+    checkSession();
+  }
 
-    Timer(const Duration(seconds: 2), () {
-      if (!mounted) return;
+  Future<void> checkSession() async {
+    await widget.app.loadPreferences();
+    await Future.delayed(const Duration(seconds: 1));
 
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (_) => widget.child),
-      );
-    });
+    if (!mounted) return;
+
+    Navigator.pushReplacementNamed(
+      context,
+      widget.app.isLoggedIn ? '/dashboard' : '/login',
+    );
   }
 
   @override
@@ -341,12 +443,9 @@ class _SplashScreenState extends State<SplashScreen> {
 // ============================================================
 
 class LoginScreen extends StatefulWidget {
-  final VoidCallback onLogin;
+  final _StudentCompanionAppState app;
 
-  const LoginScreen({
-    super.key,
-    required this.onLogin,
-  });
+  const LoginScreen({super.key, required this.app});
 
   @override
   State<LoginScreen> createState() => _LoginScreenState();
@@ -358,6 +457,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final _passwordController = TextEditingController();
 
   bool hidePassword = true;
+  bool loading = false;
 
   @override
   void dispose() {
@@ -366,16 +466,31 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
-  void login() {
+  Future<void> login() async {
     if (!_formKey.currentState!.validate()) return;
 
-    widget.onLogin();
+    final email = _emailController.text.trim();
+    final password = _passwordController.text;
 
-    Navigator.pushReplacement(
+    if (email != 'rahul.patel@charusat.edu.in' ||
+        password != 'student@123') {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Invalid email or password. Please try again.'),
+        ),
+      );
+      return;
+    }
+
+    setState(() => loading = true);
+    await widget.app.login(email);
+
+    if (!mounted) return;
+
+    Navigator.pushNamedAndRemoveUntil(
       context,
-      MaterialPageRoute(
-        builder: (_) => const MainNavigationScreen(),
-      ),
+      '/dashboard',
+      (route) => false,
     );
   }
 
@@ -393,11 +508,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    const Icon(
-                      Icons.school,
-                      size: 70,
-                      color: primaryColor,
-                    ),
+                    const Icon(Icons.school, size: 70, color: primaryColor),
                     const SizedBox(height: 20),
                     const Text(
                       'Welcome Back!',
@@ -422,9 +533,8 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                       validator: (value) {
                         final email = value?.trim() ?? '';
-                        if (!RegExp(
-                          r'^[^@\s]+@[^@\s]+\.[^@\s]+$',
-                        ).hasMatch(email)) {
+                        if (!RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$')
+                            .hasMatch(email)) {
                           return 'Enter a valid email';
                         }
                         return null;
@@ -439,9 +549,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         prefixIcon: const Icon(Icons.lock_outline),
                         suffixIcon: IconButton(
                           onPressed: () {
-                            setState(() {
-                              hidePassword = !hidePassword;
-                            });
+                            setState(() => hidePassword = !hidePassword);
                           },
                           icon: Icon(
                             hidePassword
@@ -451,36 +559,33 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                       ),
                       validator: (value) {
-                        if (value == null || value.length < 6) {
-                          return 'Minimum 6 characters required';
+                        if (value == null || value.isEmpty) {
+                          return 'Enter your password';
                         }
                         return null;
                       },
                     ),
                     const SizedBox(height: 24),
                     FilledButton(
-                      onPressed: login,
+                      onPressed: loading ? null : login,
                       style: FilledButton.styleFrom(
                         backgroundColor: primaryColor,
                         minimumSize: const Size(0, 52),
                       ),
-                      child: const Text('Sign In'),
+                      child: Text(loading ? 'Signing in...' : 'Sign In'),
                     ),
                     TextButton(
-                      onPressed: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => const RegistrationScreen(),
-                          ),
-                        );
-                      },
+                      onPressed: () =>
+                          Navigator.pushNamed(context, '/register'),
                       child: const Text('Create a new account'),
                     ),
+                    const SizedBox(height: 8),
                     const Text(
-                      'Demo authentication only; no backend connected.',
+                      'Demo credentials:\n'
+                      'rahul.patel@charusat.edu.in\n'
+                      'student@123',
                       textAlign: TextAlign.center,
-                      style: TextStyle(fontSize: 11, color: Colors.grey),
+                      style: TextStyle(fontSize: 12, color: Colors.grey),
                     ),
                   ],
                 ),
@@ -541,9 +646,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
               controller: nameController,
               decoration: const InputDecoration(labelText: 'Full Name'),
               validator: (v) =>
-                  v == null || v.trim().length < 2
-                      ? 'Enter your name'
-                      : null,
+                  v == null || v.trim().length < 2 ? 'Enter your name' : null,
             ),
             const SizedBox(height: 14),
             TextFormField(
@@ -561,10 +664,9 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
               controller: enrollmentController,
               decoration:
                   const InputDecoration(labelText: 'Enrollment Number'),
-              validator: (v) =>
-                  v == null || v.trim().isEmpty
-                      ? 'Enter enrollment number'
-                      : null,
+              validator: (v) => v == null || v.trim().isEmpty
+                  ? 'Enter enrollment number'
+                  : null,
             ),
             const SizedBox(height: 14),
             DropdownButtonFormField<String>(
@@ -583,29 +685,30 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
               controller: passwordController,
               obscureText: true,
               decoration: const InputDecoration(labelText: 'Password'),
-              validator: (v) =>
-                  v == null || v.length < 6
-                      ? 'Minimum 6 characters required'
-                      : null,
+              validator: (v) => v == null || v.length < 6
+                  ? 'Minimum 6 characters required'
+                  : null,
             ),
             const SizedBox(height: 22),
             FilledButton(
-              onPressed: () {
+              onPressed: () async {
                 if (!_formKey.currentState!.validate()) return;
 
-                // Save registration details into the shared app state.
                 final app = StudentAppScope.of(context);
-                app.updateProfile(
+
+                await app.updateProfile(
                   name: nameController.text.trim(),
                   enrollmentNo: enrollmentController.text.trim(),
                   selectedDepartment: department,
                 );
 
-                Navigator.pushAndRemoveUntil(
+                await app.login(emailController.text.trim());
+
+                if (!context.mounted) return;
+
+                Navigator.pushNamedAndRemoveUntil(
                   context,
-                  MaterialPageRoute(
-                    builder: (_) => const MainNavigationScreen(),
-                  ),
+                  '/dashboard',
                   (route) => false,
                 );
               },
@@ -619,7 +722,95 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
 }
 
 // ============================================================
-// MAIN NAVIGATION
+// DRAWER NAVIGATION
+// ============================================================
+
+class StudentDrawer extends StatelessWidget {
+  const StudentDrawer({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final app = StudentAppScope.of(context);
+
+    final drawerItems = <List<String>>[
+      ['Dashboard', '/dashboard'],
+      ['Profile', '/profile'],
+      ['Courses', '/courses'],
+      ['Attendance', '/attendance'],
+      ['Timetable', '/timetable'],
+      ['Assignments', '/assignments'],
+      ['Notifications', '/notifications'],
+      ['Faculty', '/faculty'],
+      ['Events', '/events'],
+      ['Settings', '/settings'],
+    ];
+
+    final drawerIcons = <IconData>[
+      Icons.dashboard,
+      Icons.person,
+      Icons.menu_book,
+      Icons.fact_check,
+      Icons.calendar_month,
+      Icons.assignment,
+      Icons.notifications,
+      Icons.groups,
+      Icons.event,
+      Icons.settings,
+    ];
+
+    return Drawer(
+      child: ListView(
+        padding: EdgeInsets.zero,
+        children: [
+          UserAccountsDrawerHeader(
+            accountName: Text(app.studentName),
+            accountEmail: Text(app.loginEmail),
+            currentAccountPicture: const CircleAvatar(
+              child: Icon(Icons.person, size: 36),
+            ),
+          ),
+          for (int i = 0; i < drawerItems.length; i++)
+            ListTile(
+              leading: Icon(drawerIcons[i]),
+              title: Text(drawerItems[i][0]),
+              onTap: () {
+                Navigator.pop(context);
+                if (drawerItems[i][1] == '/dashboard') {
+                  Navigator.pushNamedAndRemoveUntil(
+                    context,
+                    '/dashboard',
+                    (route) => false,
+                  );
+                } else {
+                  Navigator.pushNamed(context, drawerItems[i][1]);
+                }
+              },
+            ),
+          const Divider(),
+          ListTile(
+            leading: const Icon(Icons.logout, color: Colors.red),
+            title: const Text('Logout'),
+            onTap: () async {
+              Navigator.pop(context);
+              await app.logout();
+
+              if (!context.mounted) return;
+
+              Navigator.pushNamedAndRemoveUntil(
+                context,
+                '/login',
+                (route) => false,
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ============================================================
+// MAIN BOTTOM NAVIGATION
 // ============================================================
 
 class MainNavigationScreen extends StatefulWidget {
@@ -682,11 +873,6 @@ class DashboardScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final app = StudentAppScope.of(context);
 
-    final modules = List.generate(
-      moduleNames.length,
-      (index) => ModuleInfo(moduleNames[index], moduleIcons[index]),
-    );
-
     return Scaffold(
       appBar: AppBar(
         title: const Text(
@@ -696,17 +882,11 @@ class DashboardScreen extends StatelessWidget {
         actions: [
           IconButton(
             icon: const Icon(Icons.notifications_outlined),
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => const ModuleScreen(title: 'Notifications'),
-                ),
-              );
-            },
+            onPressed: () => Navigator.pushNamed(context, '/notifications'),
           ),
         ],
       ),
+      drawer: const StudentDrawer(),
       body: LayoutBuilder(
         builder: (context, constraints) {
           final columns = app.dashboardLayout == 'List'
@@ -789,48 +969,43 @@ class DashboardScreen extends StatelessWidget {
               GridView.builder(
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
-                itemCount: modules.length,
+                itemCount: moduleNames.length,
                 gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                   crossAxisCount: columns,
                   crossAxisSpacing: 12,
                   mainAxisSpacing: 12,
-                  childAspectRatio:
-                      app.dashboardLayout == 'List' ? 3.0 : 1.15,
+                  childAspectRatio: app.dashboardLayout == 'List' ? 3 : 1.15,
                 ),
                 itemBuilder: (context, index) {
-                  final module = modules[index];
+                  final title = moduleNames[index];
+                  final route = <String>[
+                    '/courses',
+                    '/attendance',
+                    '/timetable',
+                    '/assignments',
+                    '/notifications',
+                    '/faculty',
+                    '/events',
+                    '/settings',
+                  ][index];
 
                   return Card(
                     clipBehavior: Clip.antiAlias,
                     child: InkWell(
-                      onTap: () {
-                        if (module.title == 'Settings') {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => const SettingsScreen(),
-                            ),
-                          );
-                        } else {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => ModuleScreen(
-                                title: module.title,
-                              ),
-                            ),
-                          );
-                        }
-                      },
+                      onTap: () => Navigator.pushNamed(context, route),
                       child: Padding(
                         padding: const EdgeInsets.all(14),
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Icon(module.icon, color: primaryColor, size: 30),
+                            Icon(
+                              moduleIcons[index],
+                              color: primaryColor,
+                              size: 30,
+                            ),
                             const SizedBox(height: 12),
                             Text(
-                              module.title,
+                              title,
                               textAlign: TextAlign.center,
                               style: TextStyle(
                                 fontSize: app.textSize - 2,
@@ -850,13 +1025,6 @@ class DashboardScreen extends StatelessWidget {
       ),
     );
   }
-}
-
-class ModuleInfo {
-  final String title;
-  final IconData icon;
-
-  const ModuleInfo(this.title, this.icon);
 }
 
 class SummaryCard extends StatelessWidget {
@@ -903,6 +1071,7 @@ class StudentProfileScreen extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(title: const Text('Student Profile')),
+      drawer: const StudentDrawer(),
       body: ListView(
         padding: const EdgeInsets.all(20),
         children: [
@@ -914,11 +1083,7 @@ class StudentProfileScreen extends StatelessWidget {
                   const CircleAvatar(
                     radius: 42,
                     backgroundColor: Color(0xFFE0E7FF),
-                    child: Icon(
-                      Icons.person,
-                      size: 48,
-                      color: primaryColor,
-                    ),
+                    child: Icon(Icons.person, size: 48, color: primaryColor),
                   ),
                   const SizedBox(height: 14),
                   Text(
@@ -936,7 +1101,6 @@ class StudentProfileScreen extends StatelessWidget {
               ),
             ),
           ),
-          const SizedBox(height: 16),
           ProfileTile(
             title: 'Department',
             value: app.department,
@@ -956,6 +1120,11 @@ class StudentProfileScreen extends StatelessWidget {
             title: 'Selected Courses',
             value: '${app.selectedCourses.length}',
             icon: Icons.menu_book,
+          ),
+          ProfileTile(
+            title: 'Login Email',
+            value: app.loginEmail,
+            icon: Icons.email_outlined,
           ),
         ],
       ),
@@ -989,7 +1158,7 @@ class ProfileTile extends StatelessWidget {
 }
 
 // ============================================================
-// SETTINGS SCREEN - PRACTICAL 4
+// SETTINGS SCREEN
 // ============================================================
 
 class SettingsScreen extends StatefulWidget {
@@ -1053,6 +1222,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
     return Scaffold(
       appBar: AppBar(title: const Text('Student Settings')),
+      drawer: const StudentDrawer(),
       body: ListView(
         padding: const EdgeInsets.all(18),
         children: [
@@ -1061,7 +1231,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
             style: TextStyle(color: Colors.grey),
           ),
 
-          // PROFILE SETTINGS
           sectionTitle('Student Profile', Icons.person_outline),
           Card(
             child: Padding(
@@ -1087,55 +1256,44 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   DropdownButtonFormField<String>(
                     value: _department,
                     isExpanded: true,
-                    decoration: const InputDecoration(
-                      labelText: 'Department',
-                    ),
+                    decoration: const InputDecoration(labelText: 'Department'),
                     items: departments
-                        .map(
-                          (d) => DropdownMenuItem(
-                            value: d,
-                            child: Text(d),
-                          ),
-                        )
+                        .map((d) => DropdownMenuItem(value: d, child: Text(d)))
                         .toList(),
                     onChanged: (value) {
-                      if (value != null) {
-                        setState(() => _department = value);
-                      }
+                      if (value != null) setState(() => _department = value);
                     },
                   ),
                   const SizedBox(height: 12),
                   SizedBox(
                     width: double.infinity,
                     child: FilledButton.icon(
-                      onPressed: () {
+                      onPressed: () async {
                         if (_nameController.text.trim().isEmpty ||
                             _enrollmentController.text.trim().isEmpty) {
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(
-                              content: Text(
-                                'Please complete all profile fields.',
-                              ),
+                              content: Text('Please complete all profile fields.'),
                             ),
                           );
                           return;
                         }
 
-                        state.updateProfile(
+                        await state.updateProfile(
                           name: _nameController.text.trim(),
-                          enrollmentNo:
-                              _enrollmentController.text.trim(),
+                          enrollmentNo: _enrollmentController.text.trim(),
                           selectedDepartment: _department ?? departments[2],
                         );
 
+                        if (!context.mounted) return;
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(
-                            content: Text('Profile updated successfully!'),
+                            content: Text('Profile saved successfully!'),
                           ),
                         );
                       },
                       icon: const Icon(Icons.save),
-                      label: const Text('Update Profile'),
+                      label: const Text('Save Profile'),
                     ),
                   ),
                 ],
@@ -1143,7 +1301,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
           ),
 
-          // THEME
           sectionTitle('Theme Selection', Icons.palette_outlined),
           Card(
             child: SwitchListTile(
@@ -1152,16 +1309,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
               title: const Text('Dark Mode'),
               subtitle: Text(
-                state.isDarkMode
-                    ? 'Dark theme enabled'
-                    : 'Light theme enabled',
+                state.isDarkMode ? 'Dark theme enabled' : 'Light theme enabled',
               ),
               value: state.isDarkMode,
               onChanged: state.updateTheme,
             ),
           ),
 
-          // SEMESTER
           sectionTitle('Semester Selection', Icons.school_outlined),
           Card(
             child: Padding(
@@ -1169,9 +1323,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               child: DropdownButtonFormField<String>(
                 value: state.semester,
                 isExpanded: true,
-                decoration: const InputDecoration(
-                  labelText: 'Choose Semester',
-                ),
+                decoration: const InputDecoration(labelText: 'Choose Semester'),
                 items: semesters
                     .map((s) => DropdownMenuItem(value: s, child: Text(s)))
                     .toList(),
@@ -1182,7 +1334,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
           ),
 
-          // LANGUAGE
           sectionTitle('Language Selection', Icons.language),
           Card(
             child: Column(
@@ -1201,7 +1352,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
           ),
 
-          // NOTIFICATION PREFERENCES
           sectionTitle(
             'Notification Preferences',
             Icons.notifications_active_outlined,
@@ -1233,7 +1383,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
           ),
 
-          // COURSE PREFERENCES
           sectionTitle('Course Preferences', Icons.menu_book_outlined),
           Card(
             child: Column(
@@ -1252,11 +1401,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
           ),
 
-          // DASHBOARD CUSTOMIZATION
-          sectionTitle(
-            'Dashboard Customization',
-            Icons.dashboard_customize_outlined,
-          ),
+          sectionTitle('Dashboard Customization', Icons.dashboard_customize),
           Card(
             child: Padding(
               padding: const EdgeInsets.all(14),
@@ -1287,19 +1432,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   SwitchListTile(
                     title: const Text('Show Attendance'),
                     value: state.showAttendance,
-                    onChanged: (v) =>
-                        state.updateDashboardCard('attendance', v),
+                    onChanged: (v) => state.updateDashboardCard('attendance', v),
                   ),
                   SwitchListTile(
                     title: const Text('Show Courses'),
                     value: state.showCourses,
-                    onChanged: (v) =>
-                        state.updateDashboardCard('courses', v),
+                    onChanged: (v) => state.updateDashboardCard('courses', v),
                   ),
                   const SizedBox(height: 12),
-                  Text(
-                    'Dashboard Text Size: ${state.textSize.round()}',
-                  ),
+                  Text('Dashboard Text Size: ${state.textSize.round()}'),
                   Slider(
                     value: state.textSize,
                     min: 12,
@@ -1317,7 +1458,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
           ),
 
-          // CURRENT PREFERENCES
           sectionTitle('Current Preferences', Icons.check_circle_outline),
           Card(
             child: Padding(
@@ -1348,44 +1488,53 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
 
           const SizedBox(height: 18),
-
           FilledButton.icon(
-            onPressed: () {
+            onPressed: () async {
+              await state.savePreferences();
+
+              if (!context.mounted) return;
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(
-                  content: Text(
-                    'Preferences are updated for this session.',
-                  ),
+                  content: Text('Preferences saved successfully!'),
                 ),
               );
             },
             icon: const Icon(Icons.check_circle_outline),
-            label: const Text('Confirm Preferences'),
+            label: const Text('Save Preferences'),
           ),
-
           const SizedBox(height: 12),
-
           OutlinedButton.icon(
-            onPressed: () {
-              state.resetPreferences();
+            onPressed: () async {
+              await state.resetPreferences();
 
               _nameController.text = state.studentName;
               _enrollmentController.text = state.enrollment;
+              setState(() => _department = state.department);
 
-              setState(() {
-                _department = state.department;
-              });
-
+              if (!context.mounted) return;
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Preferences have been reset.'),
-                ),
+                const SnackBar(content: Text('Preferences reset.')),
               );
             },
             icon: const Icon(Icons.restart_alt),
             label: const Text('Reset Preferences'),
           ),
+          const SizedBox(height: 12),
+          FilledButton.icon(
+            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () async {
+              await state.logout();
 
+              if (!context.mounted) return;
+              Navigator.pushNamedAndRemoveUntil(
+                context,
+                '/login',
+                (route) => false,
+              );
+            },
+            icon: const Icon(Icons.logout),
+            label: const Text('Logout'),
+          ),
           const SizedBox(height: 24),
         ],
       ),
@@ -1400,10 +1549,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 class ModuleScreen extends StatelessWidget {
   final String title;
 
-  const ModuleScreen({
-    super.key,
-    required this.title,
-  });
+  const ModuleScreen({super.key, required this.title});
 
   @override
   Widget build(BuildContext context) {
@@ -1452,6 +1598,7 @@ class ModuleScreen extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(title: Text(title)),
+      drawer: const StudentDrawer(),
       body: items.isEmpty
           ? const Center(child: Text('No information available.'))
           : ListView.builder(
